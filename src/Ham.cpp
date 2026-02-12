@@ -346,26 +346,35 @@ inline void MakeHamSparse(SpMat& HSp){
 //Utility functions
 inline void SparseDiagonalize(SpMat& H, MatrixXd& Psi, VectorXd& E)
 {
-    typedef SparseSymMatProd<double,Eigen::Lower,0,ptrdiff_t> SparseMVProd;
+    typedef Spectra::SparseSymMatProd<double, Eigen::Lower, 0, ptrdiff_t> SparseMVProd;
     SparseMVProd op(H);
-    // Construct eigen solver object, requesting the largest three eigenvalues
-    int NCV = 0;
-//    int NState = 0;
-//    if(NEig > BasisSet.size()){
-//        NState = BasisSet.size()-1;
-//    }else{
-//        NState = NEig;
-//    }
-    NCV = max(2*NEig+1,20); // Default from Scipy's Lanczos/Arnoldi implementation
-    SymEigsSolver< double, SMALLEST_ALGE, SparseMVProd > eigs(&op, NEig, NCV);
+    
+    // Default from SciPy's Lanczos/Arnoldi implementation
+    const int n = static_cast<int>(H.rows());
+    int NCV = std::max(2 * NEig + 1, 20);
+    
+    // Enforce Spectra/ARPACK constraints: nev < ncv <= n
+    if(NCV > n) NCV = n;
+    if(NCV <= NEig) NCV = std::min(n, NEig + 1);
+    
+    // Construct eigen solver (new Spectra API: solver templated only on OpType)
+    Spectra::SymEigsSolver<SparseMVProd> eigs(op, NEig, NCV);
+    
     // Initialize and compute
     eigs.init();
-    int nconv = eigs.compute(1000,1e-10,SMALLEST_ALGE);
-    if(eigs.info() == SUCCESSFUL){
+    int nconv = eigs.compute(Spectra::SortRule::SmallestAlge, 1000, 1e-10);
+    
+    // Check convergence
+    if(eigs.info() == Spectra::CompInfo::Successful)
+    {
         E = eigs.eigenvalues().real();
         Psi = eigs.eigenvectors().real();
-    }else{
-        cout << "Error: Eigenvalues did not converge." << endl; exit(0);}
+    }
+    else
+    {
+        cout << "Error: Eigenvalues did not converge." << endl;
+        exit(0);
+    }
     return;
 };
 
