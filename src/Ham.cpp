@@ -13,6 +13,35 @@ Functions for building and diagonalizing the Hamiltonian matrix
 
 */
 
+#include <numeric>
+#include <algorithm>
+
+// Sort eigenpairs so that E(0) is the true ground state.
+// Psi columns are permuted to stay consistent with E.
+static inline void SortEigenpairs(VectorXd& E, MatrixXd& Psi)
+{
+    const int k = static_cast<int>(E.size());
+    if(k <= 1) return;
+
+    std::vector<int> idx(k);
+    std::iota(idx.begin(), idx.end(), 0);
+
+    std::sort(idx.begin(), idx.end(),
+              [&](int a, int b){ return E(a) < E(b); });
+
+    VectorXd E_sorted(k);
+    MatrixXd Psi_sorted(Psi.rows(), Psi.cols());
+
+    for(int j = 0; j < k; ++j)
+    {
+        E_sorted(j) = E(idx[j]);
+        Psi_sorted.col(j) = Psi.col(idx[j]);
+    }
+
+    E.swap(E_sorted);
+    Psi.swap(Psi_sorted);
+}
+
 inline void CreationLO(double& ci, int& ni)
 {
     //Creation ladder operator
@@ -369,6 +398,7 @@ inline void SparseDiagonalize(SpMat& H, MatrixXd& Psi, VectorXd& E)
     {
         E = eigs.eigenvalues().real();
         Psi = eigs.eigenvectors().real();
+        SortEigenpairs(E, Psi);
     }
     else
     {
@@ -384,6 +414,7 @@ inline void DenseDiagonalize(MatrixXd& H, MatrixXd& Psi, VectorXd& E){
     SE.compute(H); //Diagonalize the matrix
     E = SE.eigenvalues().real(); //Extract frequencies
     Psi = SE.eigenvectors().real(); //Extract CI vectors
+    SortEigenpairs(E, Psi);
     return;
 };
 
